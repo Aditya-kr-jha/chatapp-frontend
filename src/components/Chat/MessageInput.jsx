@@ -1,11 +1,7 @@
 import React, { useState, useRef } from 'react';
 import PropTypes from 'prop-types';
-// Assuming App.css is imported globally in App.js
-
-// --- Icons ---
-// Ensure these SVG definitions are correct and visible
 const PaperclipIcon = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#555" // Explicit size and fill color
+  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="#555"
     viewBox="0 0 16 16">
     <path d="M4.5 3a2.5 2.5 0 0 1 5 0v9a1.5 1.5 0 0 1-3 0V5a.5.5 0 0 1 1 0v7a.5.5 0 0 0 1 0V3a1.5 1.5 0 1 0-3 0v9a2.5 2.5 0 0 0 5 0V5a.5.5 0 0 1 1 0v7a3.5 3.5 0 1 1-7 0z"/>
   </svg>
@@ -33,7 +29,6 @@ function MessageInput({ onSendMessage, onSendFile, disabled }) {
   const handleTextSubmit = (e) => {
     // Prevent default form submission behavior (though onClick is used on button)
     if (e) e.preventDefault();
-    // Guard conditions
     if (disabled || !message.trim() || selectedFile) {
         console.warn("Text submit prevented:", { disabled, message, selectedFile });
         return;

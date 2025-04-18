@@ -1,14 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { getMessagesForChannel, sendTextMessage, uploadFileMessage } from '../../services/api'; // Ensure API functions are correctly imported
+import { getMessagesForChannel, sendTextMessage, uploadFileMessage } from '../../services/api';
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
-import ImageModal from './ImageModal'; // Import the modal component
+import ImageModal from './ImageModal'; 
 import { useAuth } from '../../contexts/AuthContext';
-// Assuming App.css is imported globally in App.js
 
-// --- Configuration ---
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'; // Use environment variable or default
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://chatapp-v2-zhgh.onrender.com'; // Use environment variable or default
 const wsProtocol = API_BASE_URL.startsWith('https://') ? 'wss://' : 'ws://';
 const wsHost = API_BASE_URL.replace(/^https?:\/\//, ''); // Extract hostname and port
 
@@ -39,7 +37,7 @@ function ChatView() {
         } else {
             console.warn("ChatView: Attempted to open image modal without a valid URL.");
         }
-    }, []); // No dependencies needed, just sets state
+    }, []); 
 
     /** Closes the image modal and clears the URL */
     const closeImageModal = useCallback(() => {
@@ -76,7 +74,7 @@ function ChatView() {
     // --- Effect to Fetch Messages on Mount/Channel Change ---
     useEffect(() => {
         fetchMessages();
-    }, [fetchMessages]); // Re-run if fetchMessages changes (due to channelId change)
+    }, [fetchMessages]);
 
     // --- WebSocket Connection Logic ---
     useEffect(() => {
@@ -122,8 +120,8 @@ function ChatView() {
                 const newMessage = JSON.parse(event.data);
                 console.log('ChatView: Received WebSocket message:', newMessage);
                 setMessages((prevMessages) => {
-                    if (prevMessages.some(msg => msg.id === newMessage.id)) return prevMessages; // Avoid duplicates
-                    return [...prevMessages, newMessage].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)); // Add and sort
+                    if (prevMessages.some(msg => msg.id === newMessage.id)) return prevMessages; 
+                    return [...prevMessages, newMessage].sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
                 });
                 setUploadError(null); // Clear upload error on receiving any message
             } catch (e) {
@@ -138,7 +136,7 @@ function ChatView() {
                 ws.close(1000, "Component unmounting");
             }
             if (socketRef.current === ws) socketRef.current = null;
-            setIsConnected(false); // Ensure status is false on unmount/reconnect
+            setIsConnected(false); 
         };
     }, [channelId, authToken, navigate, logout]); // Dependencies for WebSocket effect
 
@@ -149,14 +147,13 @@ function ChatView() {
         setError(null); setUploadError(null);
         console.log(`ChatView: Sending text message to channel ${channelId}`);
         try {
-            await sendTextMessage(channelId, content); // API call
-            // Rely on WebSocket echo
+            await sendTextMessage(channelId, content);
         } catch (err) {
             console.error("ChatView: Failed to send text message:", err.response?.data || err.message);
             setError(`Failed to send. ${err.response?.data?.detail || ''}`);
             if (err.response?.status === 401) { logout(); navigate('/login'); }
         }
-    }, [channelId, isUploading, isConnected, logout, navigate]); // Dependencies
+    }, [channelId, isUploading, isConnected, logout, navigate]);
 
     /** Handles sending a file message */
     const handleSendFileMessage = useCallback(async (file) => {
@@ -202,14 +199,14 @@ function ChatView() {
             <MessageList
                 messages={messages}
                 currentUser={user}
-                onImageClick={openImageModal} // Pass the modal opening function
+                onImageClick={openImageModal}
             />
 
             {/* Message Input Component */}
             <MessageInput
                 onSendMessage={handleSendTextMessage}
                 onSendFile={handleSendFileMessage}
-                disabled={!isConnected || loading || isUploading} // Disable input based on state
+                disabled={!isConnected || loading || isUploading}
             />
 
             {/* Image Modal Component */}
@@ -217,7 +214,7 @@ function ChatView() {
             <ImageModal
                 isOpen={isImageModalOpen}
                 imageUrl={modalImageUrl}
-                onClose={closeImageModal} // Pass the closing function
+                onClose={closeImageModal}
             />
         </div>
     );

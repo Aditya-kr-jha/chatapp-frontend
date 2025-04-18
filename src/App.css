@@ -497,7 +497,6 @@ form p a {
   font-weight: bold;
   font-size: 0.85em;
 }
-/* .own-message .message-author { display: none; } */ /* Uncomment to hide own author */
 .message-content {
   margin: 0;
   font-size: 0.95em;

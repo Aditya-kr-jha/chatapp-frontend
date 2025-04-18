@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // --- Configuration ---
-const API_BASE_URL = 'http://localhost:8000'; // Or your actual backend URL
+const API_BASE_URL = 'https://chatapp-v2-zhgh.onrender.com'; // Or your actual backend URL
 
 const api = axios.create({
   baseURL: API_BASE_URL,

@@ -111,7 +111,7 @@ function ChannelDashboard() {
         {/* Display errors using the consistent error message style */}
         {error && <p className="error-message">{error}</p>}
 
-        {/* Wrapper for the channel list sections */}
+       
         {/* Use flexbox for layout, but remove inline styles */}
         <div className="channel-sections-wrapper">
             {/* "My Channels" List */}
@@ -135,12 +135,6 @@ function ChannelDashboard() {
             />
         </div>
 
-        {/* Optional: Add a "Create Channel" button or link here */}
-        {/*
-        <div style={{ marginTop: '2rem', textAlign: 'center' }}>
-            <button onClick={() => navigate('/create-channel')}>Create New Channel</button>
-        </div>
-        */}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 
-// Simple modal component for displaying images
+
 function ImageModal({ isOpen, imageUrl, onClose }) {
   // If the modal is not open, render nothing
   if (!isOpen || !imageUrl) {
@@ -24,7 +24,7 @@ function ImageModal({ isOpen, imageUrl, onClose }) {
             onClick={onClose}
             aria-label="Close image view"
         >
-          &times; {/* Simple 'x' symbol */}
+          &times;
         </button>
         {/* The enlarged image */}
         <img
