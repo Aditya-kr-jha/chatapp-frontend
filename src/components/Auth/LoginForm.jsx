@@ -10,40 +10,42 @@ function LoginForm() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    clearError(); // Clear previous errors
+    clearError();
     const success = await login(username, password);
     if (success) {
-      navigate('/'); // Redirect to dashboard on successful login
+      navigate('/');
     }
   };
 
   return (
-    <div>
-      <h2>Login</h2>
+    // Use className for styling
+    <div className="auth-container">
+      <h2>Login to Zync</h2> {/* App Name Changed */}
       <form onSubmit={handleSubmit}>
+         {/* Display error message using class */}
+        {error && <p className="error-message">{error}</p>}
         <div>
-          <label htmlFor="username">Username:</label>
+          <label htmlFor="username">Username</label> {/* Simplified label */}
           <input
             type="text"
             id="username"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             required
-            autoComplete="username" // Added for better UX
+            autoComplete="username"
           />
         </div>
         <div>
-          <label htmlFor="password">Password:</label>
+          <label htmlFor="password">Password</label>
           <input
             type="password"
             id="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            autoComplete="current-password" // Added for better UX
+            autoComplete="current-password"
           />
         </div>
-        {error && <p style={{ color: 'red' }}>{error}</p>}
         <button type="submit" disabled={loading}>
           {loading ? 'Logging in...' : 'Login'}
         </button>
@@ -51,8 +53,8 @@ function LoginForm() {
       <p>
         Don't have an account? <Link to="/signup">Sign Up</Link>
       </p>
-       <p>
-         <Link to="/landing">Back to Landing</Link>
+      <p>
+         <Link to="/landing">Back</Link>
       </p>
     </div>
   );

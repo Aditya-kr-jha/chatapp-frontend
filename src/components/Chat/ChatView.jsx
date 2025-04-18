@@ -1,196 +1,224 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-// Removed: import { io } from 'socket.io-client'; // No longer using Socket.IO client
-import { getMessagesForChannel, sendMessage } from '../../services/api';
+import { getMessagesForChannel, sendTextMessage, uploadFileMessage } from '../../services/api'; // Ensure API functions are correctly imported
 import MessageList from './MessageList';
 import MessageInput from './MessageInput';
+import ImageModal from './ImageModal'; // Import the modal component
 import { useAuth } from '../../contexts/AuthContext';
+// Assuming App.css is imported globally in App.js
 
 // --- Configuration ---
-// TODO: Replace with your actual backend base URL parts if different
-const API_BASE_URL = 'http://localhost:8000'; // Used for constructing WS URL
-
-// Determine WebSocket protocol based on API_BASE_URL
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'; // Use environment variable or default
 const wsProtocol = API_BASE_URL.startsWith('https://') ? 'wss://' : 'ws://';
-// Extract hostname and port (if any) from API_BASE_URL
-const wsHost = API_BASE_URL.replace(/^https?:\/\//, ''); // Remove http(s)://
-
+const wsHost = API_BASE_URL.replace(/^https?:\/\//, ''); // Extract hostname and port
 
 function ChatView() {
-    const { channelId } = useParams(); // Get channelId from URL parameters
-    const { authToken, logout } = useAuth(); // Get auth token and logout function
-    const [messages, setMessages] = useState([]); // State for messages in the channel
-    const [loading, setLoading] = useState(true); // State for loading messages
-    const [error, setError] = useState(null); // State for errors
+    const { channelId } = useParams(); // Get channel ID from URL parameters
+    const { authToken, logout, user } = useAuth(); // Get authentication context details
+    const [messages, setMessages] = useState([]); // State to hold chat messages
+    const [channelName, setChannelName] = useState(`Channel ${channelId}`); // Placeholder for channel name
+    const [loading, setLoading] = useState(true); // State for initial message loading indicator
+    const [error, setError] = useState(null); // State for general errors
     const [isConnected, setIsConnected] = useState(false); // State for WebSocket connection status
+    const [uploadError, setUploadError] = useState(null); // State for file upload specific errors
+    const [isUploading, setIsUploading] = useState(false); // State to indicate if a file upload is in progress
     const socketRef = useRef(null); // Ref to hold the WebSocket instance
-    const navigate = useNavigate(); // Hook for navigation
+    const navigate = useNavigate(); // Hook for programmatic navigation
 
-    // --- Fetch initial messages via REST API ---
+    // --- State for Image Modal ---
+    const [isImageModalOpen, setIsImageModalOpen] = useState(false); // Is the modal currently visible?
+    const [modalImageUrl, setModalImageUrl] = useState(null); // Which image URL to show in the modal
+
+    // --- Handlers for Image Modal ---
+    /** Opens the image modal with the provided image URL */
+    const openImageModal = useCallback((imageUrl) => {
+        if (imageUrl) {
+            console.log("ChatView: Opening image modal for:", imageUrl);
+            setModalImageUrl(imageUrl);
+            setIsImageModalOpen(true);
+        } else {
+            console.warn("ChatView: Attempted to open image modal without a valid URL.");
+        }
+    }, []); // No dependencies needed, just sets state
+
+    /** Closes the image modal and clears the URL */
+    const closeImageModal = useCallback(() => {
+        console.log("ChatView: Closing image modal");
+        setIsImageModalOpen(false);
+        setModalImageUrl(null); // Clear the URL when closing
+    }, []); // No dependencies needed
+
+    // --- Fetch initial messages ---
     const fetchMessages = useCallback(async () => {
+        if (!channelId) return;
         setLoading(true);
         setError(null);
+        setUploadError(null);
+        console.log(`ChatView: Fetching messages for channel ${channelId}`);
         try {
             const response = await getMessagesForChannel(channelId);
-            setMessages(response.data || []); // Set messages from API response
+            // TODO: Optionally fetch channel details for the name
+            const sortedMessages = (response.data || []).sort((a, b) =>
+                new Date(a.created_at) - new Date(b.created_at)
+            );
+            setMessages(sortedMessages);
+            console.log(`ChatView: Fetched ${sortedMessages.length} messages.`);
         } catch (err) {
-            console.error("Failed to fetch messages:", err);
-            setError(`Failed to load messages for channel ${channelId}.`);
-            if (err.response?.status === 401) { // Handle unauthorized
-                logout();
-                navigate('/login');
-            }
-            // Handle case where user might not be a member (backend should ideally return 403/404)
-            if (err.response?.status === 403 || err.response?.status === 404) {
-                setError("You do not have access to this channel.");
-                // Optionally redirect back after a delay
-                // setTimeout(() => navigate('/'), 3000);
-            }
+            console.error("ChatView: Failed to fetch messages:", err.response?.data || err.message);
+            setError(`Failed to load messages.`);
+            if (err.response?.status === 401) { logout(); navigate('/login'); }
+            if (err.response?.status === 403 || err.response?.status === 404) { setError("Access denied or channel not found."); }
         } finally {
             setLoading(false);
         }
-    }, [channelId, navigate, logout]); // Dependencies for useCallback
+    }, [channelId, navigate, logout]); // Dependencies
 
-    // Fetch messages when component mounts or channelId changes
+    // --- Effect to Fetch Messages on Mount/Channel Change ---
     useEffect(() => {
         fetchMessages();
-    }, [fetchMessages]);
+    }, [fetchMessages]); // Re-run if fetchMessages changes (due to channelId change)
 
-    // --- Native WebSocket Connection Logic ---
+    // --- WebSocket Connection Logic ---
     useEffect(() => {
-        // Only attempt connection if token and channelId are present
-        if (!authToken || !channelId) return;
-
-        // Close any existing WebSocket connection before creating a new one
-        if (socketRef.current) {
-            console.log("Closing previous WebSocket connection.");
-            socketRef.current.close();
-            socketRef.current = null; // Clear the ref
-            setIsConnected(false); // Update connection status
+        if (!authToken || !channelId) {
+            console.log("ChatView: WebSocket prerequisites not met.");
+            return; // Don't connect if no token or channel ID
         }
 
-        // Construct the WebSocket URL: ws(s)://host/ws/{channel_id}?token=...
+        // Close existing connection if any
+        if (socketRef.current) {
+            console.log("ChatView: Closing previous WebSocket connection.");
+            socketRef.current.close(1000, "New connection requested");
+            socketRef.current = null;
+            setIsConnected(false);
+        }
+
+        // Connect WebSocket
         const wsUrl = `${wsProtocol}${wsHost}/ws/${channelId}?token=${authToken}`;
-        console.log("Attempting to connect WebSocket:", wsUrl);
-
-        // Create new native WebSocket instance
+        console.log("ChatView: Attempting WebSocket connection:", wsUrl);
         const ws = new WebSocket(wsUrl);
-        socketRef.current = ws; // Store the instance in the ref
+        socketRef.current = ws;
 
-        // --- WebSocket Event Handlers ---
+        // Event Handlers
         ws.onopen = () => {
-            console.log(`WebSocket connected to ${wsUrl}`);
-            setIsConnected(true); // Update state on successful connection
-            setError(null); // Clear previous errors
+            console.log(`ChatView: WebSocket connected.`);
+            setIsConnected(true); setError(null);
         };
-
         ws.onclose = (event) => {
-            console.log(`WebSocket disconnected. Code: ${event.code}, Reason: ${event.reason}, Was Clean: ${event.wasClean}`);
-            setIsConnected(false); // Update state on close
-
-            // Check if the current ref instance is the one that closed
-            if (socketRef.current === ws) {
-                 socketRef.current = null; // Clear ref if this instance closed
-            }
-
-            // Handle specific close codes
-            if (event.code === 1008) { // Policy Violation (e.g., auth failed)
-                setError("Connection closed: Not authorized for this channel.");
-                logout(); // Force logout on auth failure
-                navigate('/login');
-            } else if (!event.wasClean && event.code !== 1000) { // 1000 is normal closure by client
-                 // Handle unexpected closure (server restart, network issue)
-                 setError("Real-time connection lost unexpectedly. Please refresh the page to reconnect.");
-                 // NOTE: No automatic reconnect is implemented here.
-            }
+            console.log(`ChatView: WebSocket disconnected. Code: ${event.code}, Clean: ${event.wasClean}`);
+            setIsConnected(false);
+            if (socketRef.current === ws) socketRef.current = null;
+            if (event.code === 1008) { setError("Connection closed: Not authorized."); logout(); navigate('/login'); }
+            else if (!event.wasClean && event.code !== 1000 && event.code !== 1001) { setError("Real-time connection lost."); }
         };
-
         ws.onerror = (event) => {
-            // This event often precedes onclose when there's a connection issue
-            console.error("WebSocket error observed:", event);
-            setError("Failed to establish or maintain real-time connection. Check console.");
-            setIsConnected(false); // Ensure disconnected state on error
-            if (socketRef.current === ws) {
-                 socketRef.current = null; // Clear ref if this instance errored
-            }
+            console.error("ChatView: WebSocket error:", event);
+            if (!error && !isConnected) setError("Connection error.");
+            setIsConnected(false);
+            if (socketRef.current === ws) socketRef.current = null;
         };
-
-        // Handle incoming messages from the server
         ws.onmessage = (event) => {
             try {
-                const newMessage = JSON.parse(event.data); // Parse the JSON message data
-                console.log('Received message via WebSocket:', newMessage);
-                // Add the new message to the messages state
-                // Ensure the message format matches what MessageList expects
-                setMessages((prevMessages) => [...prevMessages, newMessage]);
+                const newMessage = JSON.parse(event.data);
+                console.log('ChatView: Received WebSocket message:', newMessage);
+                setMessages((prevMessages) => {
+                    if (prevMessages.some(msg => msg.id === newMessage.id)) return prevMessages; // Avoid duplicates
+                    return [...prevMessages, newMessage].sort((a, b) => new Date(a.created_at) - new Date(b.created_at)); // Add and sort
+                });
+                setUploadError(null); // Clear upload error on receiving any message
             } catch (e) {
-                console.error("Failed to parse incoming WebSocket message:", event.data, e);
-                // Optionally show an error to the user or just log it
+                console.error("ChatView: Failed to parse WebSocket message:", event.data, e);
             }
         };
 
-        // --- Cleanup function for useEffect ---
-        // This runs when the component unmounts or dependencies change
+        // Cleanup function
         return () => {
-            // Check if the WebSocket instance exists and is open before closing
             if (ws && ws.readyState === WebSocket.OPEN) {
-                console.log(`Closing WebSocket connection for channel ${channelId} during cleanup.`);
-                ws.close(1000, "Client navigating away or component unmounting"); // 1000 = Normal closure
+                console.log(`ChatView: Closing WebSocket connection during cleanup.`);
+                ws.close(1000, "Component unmounting");
             }
-            // Ensure the ref is cleared if this specific instance is being cleaned up
-            if (socketRef.current === ws) {
-                socketRef.current = null;
-            }
+            if (socketRef.current === ws) socketRef.current = null;
+            setIsConnected(false); // Ensure status is false on unmount/reconnect
         };
-    // Dependencies: reconnect if channelId or authToken changes
-    }, [channelId, authToken, navigate, logout]);
+    }, [channelId, authToken, navigate, logout]); // Dependencies for WebSocket effect
 
-
-    // --- Send Message Handler (uses REST API) ---
-    const handleSendMessage = async (content) => {
-        if (!content.trim()) return; // Ignore empty messages
-        // Disable sending if not connected? Or allow and rely on backend error?
-        // For now, allow sending; backend should reject if not member/etc.
+    // --- Send Handlers ---
+    /** Handles sending a text message */
+    const handleSendTextMessage = useCallback(async (content) => {
+        if (!isConnected || isUploading || !content.trim()) return;
+        setError(null); setUploadError(null);
+        console.log(`ChatView: Sending text message to channel ${channelId}`);
         try {
-            // POST the message via the REST API
-            // The backend's responsibility is to save it AND broadcast via WebSocket
-            await sendMessage(channelId, content);
-            // We don't add the message to state here; we wait for the WebSocket echo
-            // This ensures consistency if the POST fails or the backend modifies the message
+            await sendTextMessage(channelId, content); // API call
+            // Rely on WebSocket echo
         } catch (err) {
-            console.error("Failed to send message:", err);
-            setError(`Failed to send message. ${err.response?.data?.detail || ''}`);
-            if (err.response?.status === 401) { // Handle unauthorized
-                logout();
-                navigate('/login');
-            }
+            console.error("ChatView: Failed to send text message:", err.response?.data || err.message);
+            setError(`Failed to send. ${err.response?.data?.detail || ''}`);
+            if (err.response?.status === 401) { logout(); navigate('/login'); }
         }
-    };
+    }, [channelId, isUploading, isConnected, logout, navigate]); // Dependencies
 
-    // --- Render the Chat View ---
+    /** Handles sending a file message */
+    const handleSendFileMessage = useCallback(async (file) => {
+        if (!isConnected || isUploading || !file) return;
+        setError(null); setUploadError(null); setIsUploading(true);
+        console.log(`ChatView: Uploading file "${file.name}" to channel ${channelId}`);
+        try {
+            await uploadFileMessage(channelId, file); // API call
+             // Rely on WebSocket echo
+        } catch (err) {
+            console.error("ChatView: Failed to upload file:", err.response?.data || err.message);
+            setUploadError(`Upload failed: ${err.response?.data?.detail || err.message || 'Unknown error'}`);
+             if (err.response?.status === 401) { logout(); navigate('/login'); }
+             if (err.response?.status === 413) { setUploadError("Upload failed: File is too large."); }
+        } finally {
+            setIsUploading(false); // Clear uploading state
+        }
+    }, [channelId, isUploading, isConnected, logout, navigate]); // Dependencies
+
+    // --- Render ---
     return (
-        <div>
-            {/* Link to go back to the channel list */}
-            <Link to="/"> &larr; Back to Channels</Link>
-            <h2>Chat - Channel {channelId}</h2> {/* TODO: Fetch and display channel name */}
+        // Main container using CSS class
+        <div className="chat-view-container">
+            {/* Header Section */}
+            <div className="chat-header">
+                 <Link to="/" className="back-link" title="Back to Channels">&larr; Back</Link>
+                 <span className="channel-title">Zync - {channelName}</span>
+                 <span className={`chat-status ${isConnected ? 'connected' : 'disconnected'}`}>
+                     {isConnected ? 'Connected' : 'Disconnected'}
+                 </span>
+            </div>
 
-            {/* Display WebSocket connection status */}
-            <p style={{ color: isConnected ? 'green' : 'red', fontWeight: 'bold' }}>
-                Status: {isConnected ? 'Connected (Real-time)' : 'Disconnected'}
-             </p>
+             {/* Status Indicators Section */}
+            <div className="chat-indicators">
+                {loading && <p className="chat-loading">Loading messages...</p>}
+                {error && <p className="chat-error">Error: {error}</p>}
+                {uploadError && <p className="chat-upload-error">Upload Error: {uploadError}</p>}
+                {isUploading && <p className="chat-uploading">Uploading file...</p>}
+            </div>
 
-            {/* Display loading indicator */}
-            {loading && <p>Loading messages...</p>}
+            {/* Message List Component */}
+            {/* Pass down the messages, current user, and the image click handler */}
+            <MessageList
+                messages={messages}
+                currentUser={user}
+                onImageClick={openImageModal} // Pass the modal opening function
+            />
 
-            {/* Display errors */}
-            {error && <p style={{ color: 'red' }}>{error}</p>}
+            {/* Message Input Component */}
+            <MessageInput
+                onSendMessage={handleSendTextMessage}
+                onSendFile={handleSendFileMessage}
+                disabled={!isConnected || loading || isUploading} // Disable input based on state
+            />
 
-            {/* Render the list of messages */}
-            <MessageList messages={messages} />
-
-            {/* Render the message input component */}
-            {/* Disable input if WebSocket is not connected or messages are still loading */}
-            <MessageInput onSendMessage={handleSendMessage} disabled={!isConnected || loading} />
+            {/* Image Modal Component */}
+            {/* Rendered conditionally based on state */}
+            <ImageModal
+                isOpen={isImageModalOpen}
+                imageUrl={modalImageUrl}
+                onClose={closeImageModal} // Pass the closing function
+            />
         </div>
     );
 }

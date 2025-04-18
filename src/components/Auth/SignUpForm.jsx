@@ -16,29 +16,26 @@ function SignUpForm() {
     const success = await signup(username, email, password);
     if (success) {
        setSignupSuccess(true);
-       // Optional: Automatically log in or navigate to login
-       // navigate('/login');
     }
   };
 
-   // Display success message and link to login
    if (signupSuccess) {
         return (
-            <div>
+            <div className="auth-container success-message"> {/* Use class */}
                 <h2>Sign Up Successful!</h2>
-                <p>Your account has been created.</p>
+                <p>Your Zync account has been created.</p> {/* App Name Changed */}
                 <Link to="/login">Proceed to Login</Link>
             </div>
         );
     }
 
-  // Display signup form
   return (
-    <div>
-      <h2>Sign Up</h2>
+    <div className="auth-container">
+      <h2>Create your Zync Account</h2> {/* App Name Changed */}
       <form onSubmit={handleSubmit}>
+         {error && <p className="error-message">{error}</p>} {/* Use class */}
         <div>
-          <label htmlFor="username">Username:</label>
+          <label htmlFor="username">Username</label>
           <input
             type="text"
             id="username"
@@ -49,7 +46,7 @@ function SignUpForm() {
           />
         </div>
          <div>
-          <label htmlFor="email">Email:</label>
+          <label htmlFor="email">Email</label>
           <input
             type="email"
             id="email"
@@ -60,17 +57,16 @@ function SignUpForm() {
           />
         </div>
         <div>
-          <label htmlFor="password">Password:</label>
+          <label htmlFor="password">Password</label>
           <input
             type="password"
             id="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            autoComplete="new-password" // Hint for password managers
+            autoComplete="new-password"
           />
         </div>
-        {error && <p style={{ color: 'red' }}>{error}</p>}
         <button type="submit" disabled={loading}>
           {loading ? 'Signing up...' : 'Sign Up'}
         </button>
@@ -79,7 +75,7 @@ function SignUpForm() {
         Already have an account? <Link to="/login">Login</Link>
       </p>
        <p>
-         <Link to="/landing">Back to Landing</Link>
+         <Link to="/landing">Back</Link>
       </p>
     </div>
   );
