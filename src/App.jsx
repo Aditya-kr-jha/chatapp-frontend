@@ -6,7 +6,7 @@ import LoginForm from './components/Auth/LoginForm';
 import SignUpForm from './components/Auth/SignUpForm';
 import ChannelDashboard from './components/Channels/ChannelDashboard'; // Main view after login
 import ChatView from './components/Chat/ChatView';
-import './App.css'; // Basic styling
+import './App.css';
 
 // Component to protect routes
 function ProtectedRoute() {

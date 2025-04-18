@@ -117,24 +117,15 @@ function ChatView() {
 
         // Handle incoming messages from the server
         ws.onmessage = (event) => {
-            console.log('[WebSocket] Raw message received:', event.data); // <-- ADD THIS LINE
-
             try {
                 const newMessage = JSON.parse(event.data); // Parse the JSON message data
-                console.log('[WebSocket] Parsed message:', newMessage); // <-- ADD THIS LINE
-
+                console.log('Received message via WebSocket:', newMessage);
                 // Add the new message to the messages state
-                setMessages((prevMessages) => {
-                    console.log('[WebSocket] Updating messages state...'); // <-- ADD THIS LINE
-                    // Basic check to prevent duplicates if backend sends multiple times (optional)
-                    if (prevMessages.some(msg => msg.id === newMessage.id)) {
-                        console.warn('[WebSocket] Duplicate message ID received, skipping state update:', newMessage.id);
-                        return prevMessages;
-                    }
-                    return [...prevMessages, newMessage];
-                });
+                // Ensure the message format matches what MessageList expects
+                setMessages((prevMessages) => [...prevMessages, newMessage]);
             } catch (e) {
-                console.error("[WebSocket] Failed to parse incoming message:", event.data, e);
+                console.error("Failed to parse incoming WebSocket message:", event.data, e);
+                // Optionally show an error to the user or just log it
             }
         };
 
